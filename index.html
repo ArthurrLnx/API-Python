@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Produtos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Gerenciador de Produtos</h1>
+    
+    <div id="message" class="message" style="display: none;"></div>
+    
+    <div class="container">
+        <div class="section">
+            <h2>Lista de Produtos</h2>
+            <button onclick="carregarProdutos()">Atualizar Lista</button>
+            <table id="produtosTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Preço</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        
+        <div class="section">
+            <h2>Adicionar/Editar Produto</h2>
+            <form id="produtoForm">
+                <input type="hidden" id="produtoId">
+                
+                <label for="nome">Nome:</label>
+                <input type="text" id="nome" required>
+                
+                <label for="preco">Preço:</label>
+                <input type="number" id="preco" step="0.01" required>
+                
+                <button type="button" onclick="salvarProduto()">Salvar Produto</button>
+                <button type="button" onclick="limparFormulario()">Limpar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const apiUrl = 'http://localhost:5000/produtos';
+        
+        // Carregar produtos quando a página é carregada
+        document.addEventListener('DOMContentLoaded', carregarProdutos);
+        
+        // Função para exibir mensagens
+        function showMessage(text, isError = false) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = text;
+            messageDiv.className = isError ? 'message error' : 'message success';
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Carregar lista de produtos
+        async function carregarProdutos() {
+            try {
+                const response = await fetch(apiUrl);
+                const produtos = await response.json();
+                
+                const tbody = document.querySelector('#produtosTable tbody');
+                tbody.innerHTML = '';
+                
+                produtos.forEach(produto => {
+                    const row = document.createElement('tr');
+                    
+                    row.innerHTML = `
+                        <td>${produto.id}</td>
+                        <td>${produto.nome}</td>
+                        <td>R$ ${produto.preco.toFixed(2)}</td>
+                        <td>
+                            <button onclick="editarProduto(${produto.id})">Editar</button>
+                            <button class="delete" onclick="deletarProduto(${produto.id})">Deletar</button>
+                        </td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                showMessage('Produtos carregados com sucesso!');
+            } catch (error) {
+                showMessage('Erro ao carregar produtos: ' + error.message, true);
+            }
+        }
+        
+        // Salvar produto (criar ou atualizar)
+        async function salvarProduto() {
+            const id = document.getElementById('produtoId').value;
+            const nome = document.getElementById('nome').value;
+            const preco = parseFloat(document.getElementById('preco').value);
+            
+            if (!nome || isNaN(preco)) {
+                showMessage('Preencha todos os campos corretamente', true);
+                return;
+            }
+            
+            const produto = { nome, preco };
+            
+            try {
+                let response;
+                if (id) {
+                    // Atualizar produto existente
+                    response = await fetch(`${apiUrl}/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(produto)
+                    });
+                } else {
+                    // Criar novo produto
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(produto)
+                    });
+                }
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.erro || 'Erro ao salvar produto');
+                }
+                
+                showMessage(id ? 'Produto atualizado com sucesso!' : 'Produto adicionado com sucesso!');
+                limparFormulario();
+                carregarProdutos();
+            } catch (error) {
+                showMessage('Erro ao salvar produto: ' + error.message, true);
+            }
+        }
+        
+        // Editar produto
+        async function editarProduto(id) {
+            try {
+                const response = await fetch(`${apiUrl}/${id}`);
+                const produto = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(produto.erro || 'Erro ao carregar produto');
+                }
+                
+                document.getElementById('produtoId').value = produto.id;
+                document.getElementById('nome').value = produto.nome;
+                document.getElementById('preco').value = produto.preco;
+                
+                showMessage('Produto carregado para edição');
+            } catch (error) {
+                showMessage('Erro ao carregar produto: ' + error.message, true);
+            }
+        }
+        
+        // Deletar produto
+        async function deletarProduto(id) {
+            if (!confirm('Tem certeza que deseja deletar este produto?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiUrl}/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.erro || 'Erro ao deletar produto');
+                }
+                
+                showMessage('Produto deletado com sucesso!');
+                carregarProdutos();
+            } catch (error) {
+                showMessage('Erro ao deletar produto: ' + error.message, true);
+            }
+        }
+        
+        // Limpar formulário
+        function limparFormulario() {
+            document.getElementById('produtoForm').reset();
+            document.getElementById('produtoId').value = '';
+        }
+    </script>
+</body>
+</html>
